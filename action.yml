@@ -9,9 +9,9 @@ inputs:
   token:
     description: "Telegram Bot Token"
   to:
-    description: "Target Telegram Channel"
-  ignore_green_to_green:
-    description: "If true do not notify when status changes from green to green in the same branch"
+    description: "Telegram Channel ID"
+  report_green_to_green:
+    description: "If false green to green transitions on a branch will not be reported."
     default: true
 outputs:
   random-number:
