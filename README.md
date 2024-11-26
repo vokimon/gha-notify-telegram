@@ -50,7 +50,7 @@ Default to false.
   ....
       - name: 📢 Notify status changes
         if: always()
-        uses: vokimon/gha-
+        uses: vokimon/gha-notify-telegram
         with:
           token: ${{ secrets.TELEGRAM_TOKEN }}
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
