@@ -46,6 +46,17 @@ runs:
         echo "CURRENT_RUN=${{job.status}}"
         echo "RUN_ID=${{github.run_id}}"
         echo "REPORT_GREEN_TO_GREEN=${{inputs.ignore_green_to_green == false}}"
+        function status_icon() {
+          ([ "$1" == "failure" ] && echo '❌')  ||
+          ([ "$1" == "success" ] && echo '✅')  ||
+          ([ "$1" == "new_branch" ] && echo '✨' ) ||
+          echo "$1"
+        }
+        LAST_RUN_ICON="$( status_icon $LAST_RUN)"
+        THIS_RUN_ICON="$( status_icon ${{ job.status }} )"
+        echo LAST_RUN_ICON="$LAST_RUN_ICON" >> $GITHUB_ENV
+        echo THIS_RUN_ICON="$THIS_RUN_ICON" >> $GITHUB_ENV
+        echo "$LAST_RUN_ICON -> $THIS_RUN_ICON"
 
     - name: 📢 Notify changes in Telegram
       uses: cbrgm/telegram-github-action@v1
@@ -60,7 +71,7 @@ runs:
         parse-mode: 'markdown'
         disable-web-page-preview: true
         message: |
-          ${{ format('{3} → {2}: {0} `[{1}]`', github.event.repository.name, github.ref_name, (job.status == 'failure' && '❌' ) || (job.status == 'success' && '✅' ) || job.status, (env.LAST_RUN == 'failure' && '❌' ) || (env.LAST_RUN == 'success' && '✅' ) || (env.LAST_RUN == 'new_branch' && '✨' ) || env.LAST_RUN ) }}
+          ${{ format('{3} → {2}: {0} `[{1}]`', github.event.repository.name, github.ref_name, env.THIS_RUN_ICON, env.LAST_RUN_ICON) }}
 
           ${{ format('Author: {0} ![Avatar](https://github.com/{1}.png)', github.event.head_commit.author.name, github.event.head_commit.author.username ) }}
           
