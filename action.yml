@@ -35,14 +35,14 @@ runs:
       if: always()
       shell: bash
       run: |
-        curl -s https://api.github.com/repos/${{github.repository}}/actions/runs |
-        jq -r '[.workflow_runs | sort_by(.created_at) | .[] | select(.head_branch == "${{ github.ref_name }}") | { id: .id,  branch: .head_branch, conclusion: .conclusion, message: .head_commit.message, created_at: .created_at }  ] | .[-10:]'
-        lastrun=$(
-          curl -s https://api.github.com/repos/${{github.repository}}/actions/runs |
-          jq -r '[.workflow_runs | sort_by(.created_at) | .[] | select(.head_branch == "${{ github.ref_name }}") | select(.id != ${{github.run_id}}) | { branch: .head_branch, conclusion: .conclusion }  ] | .[-1].conclusion // "new_branch"'
+        curl -s https://api.github.com/repos/${{github.repository}}/actions/runs?branch=${{ github.ref_name }} |
+        jq -r '[.workflow_runs | sort_by(.created_at) | .[] | select(.name == "${{ github.workflow }}") | { id: .id,  branch: .head_branch, conclusion: .conclusion, message: .head_commit.message, created_at: .created_at }  ] | .[-10:]'
+        LAST_RUN=$(
+          curl -s https://api.github.com/repos/${{github.repository}}/actions/runs?branch=${{ github.ref_name }}  |
+          jq -r '[.workflow_runs | sort_by(.created_at) | .[] | select(.name == "${{ github.workflow }}") | select(.id != ${{github.run_id}}) | { branch: .head_branch, conclusion: .conclusion }  ] | .[-1].conclusion // "new_branch"'
         )
-        echo "LAST_RUN=$lastrun"
-        echo "LAST_RUN=$lastrun" >> $GITHUB_ENV
+        echo "LAST_RUN=$LAST_RUN"
+        echo "LAST_RUN=$LAST_RUN" >> $GITHUB_ENV
         echo "CURRENT_RUN=${{job.status}}"
         echo "RUN_ID=${{github.run_id}}"
         echo "REPORT_GREEN_TO_GREEN=${{inputs.ignore_green_to_green == false}}"
