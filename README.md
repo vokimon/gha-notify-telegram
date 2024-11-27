@@ -2,18 +2,23 @@
 
 A Github Action to notify Telegram CI results.
 
-This action is for personal use for my own projects
-to be able to switch among the many existing
-Telegram actions in a centralized place.
+This does not duplicate the many other [generic telegram notifier](https://github.com/marketplace?query=telegram) actions around.
+It centralizes, for all my personal projects, choices for:
+
+- which of those telegram actions to pick
+- when to trigger the notification
+- what the message should contain
 
 ## Features
 
 - Smart notifications considering prevous CI status of the branch
-    - Do not report success -> success changes, unless otherwise specified
     - Reports any non successfull run
     - Reports any run after a non-successfull one
+    - Do not report success -> success changes, unless otherwise specified
+- The current message format is this:
+  ![Screenshot](screenshots/dark-1.png)
+- No need to gather info, it is obtained from generic github context.
 
-![Screenshot](screenshots/dark-1.png)
 
 ## Inputs
 
