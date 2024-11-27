@@ -7,7 +7,7 @@ inputs:
     description: "Telegram Channel ID"
   report_green_to_green:
     description: "If false green to green transitions on a branch will not be reported."
-    default: true
+    default: false
 outputs:
   random-number:
     description: "Random number"
@@ -60,7 +60,7 @@ runs:
 
     - name: 📢 Telegram Notification
       uses: akeylimepie/telegram-action@main
-      if: job.status != 'success' || env.LAST_RUN != 'success' || inputs.ignore_green_to_green == false
+      if: job.status != 'success' || env.LAST_RUN != 'success' || inputs.report_green_to_green
 
       # continue-on-error allows the build to succeed even when the notification fails
       # e.g. when other users, such as dependabot, push without access to the secrets

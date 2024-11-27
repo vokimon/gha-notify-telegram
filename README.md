@@ -2,7 +2,8 @@
 
 A Github Action to notify Telegram CI results.
 
-This does not duplicate the many other [generic telegram notifier](https://github.com/marketplace?query=telegram) actions around.
+This does not intent to duplicate the many other
+[generic telegram notifier](https://github.com/marketplace?query=telegram) actions around.
 It centralizes, for all my personal projects, choices for:
 
 - which of those telegram actions to pick
