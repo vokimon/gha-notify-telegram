@@ -1,8 +1,3 @@
-# TODO: Notify first green after red in a branch
-# maybe using something like: https://github.com/MercymeIlya/last-workflow-status
-
-# TODO: Remove duplicated repo and branch info
-
 name: 'CI notifications on Telegram'
 description: 'Notifies by Telegram about failed CI runs or successfull runs after previous failures in the branch'
 inputs:
@@ -20,78 +15,82 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Debug
-      shell: bash
-      if: false
-      run: |
-        echo "webhookUrl: ${{ inputs.webhook }}"
-        echo "jobStatus: ${{ job.status }}"
-        echo "imageUrl: ${{ format('https://github.com/{0}.png', github.event.head_commit.author.username) }}"
-        echo "imageAltText: ${{ github.event.head_commit.author.name }}"
-        echo "subtitle: ${{ github.event.head_commit.message }}"
-        echo "title: ${{ format('{0} -- [{1}]', github.event.repository.name, github.event.ref) }}"
-
-    - name: Obtain status of previous run on the branch
+    - name: Compile status and other info
       if: always()
       shell: bash
       run: |
+        # https://docs.github.com/en/webhooks/webhook-events-and-payloads
         curl -s https://api.github.com/repos/${{github.repository}}/actions/runs?branch=${{ github.ref_name }} |
-        jq -r '[.workflow_runs | sort_by(.created_at) | .[] | select(.name == "${{ github.workflow }}") | { id: .id,  branch: .head_branch, conclusion: .conclusion, message: .head_commit.message, created_at: .created_at }  ] | .[-10:]'
+        jq -r '[.workflow_runs | sort_by(.created_at) | .[] | select(.name == "${{ github.workflow }}") | { id: .id,  branch: .head_branch, conclusion: .conclusion, message: .head_commit.message, created_at: .created_at }  ] | .[-4:]'
         LAST_RUN=$(
           curl -s https://api.github.com/repos/${{github.repository}}/actions/runs?branch=${{ github.ref_name }}  |
           jq -r '[.workflow_runs | sort_by(.created_at) | .[] | select(.name == "${{ github.workflow }}") | select(.id != ${{github.run_id}}) | { branch: .head_branch, conclusion: .conclusion }  ] | .[-1].conclusion // "new_branch"'
         )
         echo "LAST_RUN=$LAST_RUN"
-        echo "LAST_RUN=$LAST_RUN" >> $GITHUB_ENV
         echo "CURRENT_RUN=${{job.status}}"
         echo "RUN_ID=${{github.run_id}}"
         echo "REPORT_GREEN_TO_GREEN=${{inputs.ignore_green_to_green == false}}"
         function status_icon() {
-          ([ "$1" == "failure" ] && echo '❌')  ||
-          ([ "$1" == "success" ] && echo '✅')  ||
-          ([ "$1" == "new_branch" ] && echo '✨' ) ||
-          echo "$1"
+          case "$1" in
+          "failure" ) echo '❌';;
+          "success" ) echo '✅';;
+          "new_branch") echo '✨';;
+          "queued") echo '⏳';;
+          "in_progress") echo '⚙';;
+          "cancelled") echo '🚫';;
+          "skipped") echo '⏭️';;
+          "timed_out") echo '👴';;
+          *) echo "$1";;
+          esac
         }
         LAST_RUN_ICON="$( status_icon $LAST_RUN)"
         THIS_RUN_ICON="$( status_icon ${{ job.status }} )"
-        echo LAST_RUN_ICON="$LAST_RUN_ICON" >> $GITHUB_ENV
-        echo THIS_RUN_ICON="$THIS_RUN_ICON" >> $GITHUB_ENV
-        echo "$LAST_RUN_ICON -> $THIS_RUN_ICON"
+        echo "THIS_RUN=${{ job.status }}" >> $GITHUB_ENV
+        echo "LAST_RUN=$LAST_RUN" >> $GITHUB_ENV
+        echo "LAST_RUN_ICON=$LAST_RUN_ICON" >> $GITHUB_ENV
+        echo "THIS_RUN_ICON=$THIS_RUN_ICON" >> $GITHUB_ENV
+        echo "THIS_RUN_LINK=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_ENV
+        echo "REPO_NAME=${{github.event.repository.name}}" >> $GITHUB_ENV
+        echo "REPO_LINK=https://github.com/${{ github.repository }}" >> $GITHUB_ENV
+        echo "CHANGES_LINK=https://github.com/${{ github.repository }}/commit/${{ github.sha }}" >> $GITHUB_ENV
+        printf "COMMIT_MESSAGE<<EOF\n%s\nEOF\n" "${{github.event.head_commit.message}}" >> "$GITHUB_ENV"
+        echo "AVATAR_URL=${{ format('https://github.com/{0}.png', github.event.head_commit.author.username) }}" >> $GITHUB_ENV
+        echo "AUTHOR_NAME=${{ github.event.head_commit.author.name }}" >> $GITHUB_ENV
+        echo "BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
 
-    - name: 📢 Notify changes in Telegram
-      uses: cbrgm/telegram-github-action@v1
+    - name: 📢 Telegram Notification
+      uses: akeylimepie/telegram-action@main
       if: job.status != 'success' || env.LAST_RUN != 'success' || inputs.ignore_green_to_green == false
 
-      # this allows the build to succeed even when the notification fails
-      # e.g. due to dependabot push, which may not have the secret
+      # continue-on-error allows the build to succeed even when the notification fails
+      # e.g. when other users, such as dependabot, push without access to the secrets
       continue-on-error: true
       with:
         token: ${{ inputs.token }}
-        to: ${{ inputs.to }}
-        parse-mode: 'markdown'
-        disable-web-page-preview: true
-        message: |
-          ${{ format('{3} → {2}: {0} `[{1}]`', github.event.repository.name, github.ref_name, env.THIS_RUN_ICON, env.LAST_RUN_ICON) }}
+        chat_id: ${{ inputs.to }}
+        parse_mode: html
+        #disable-web-page-preview: true
+        text: |
+          ${{ format('{0} → {1}: <b>{2}</b> <code>[{3}]</code>', env.LAST_RUN_ICON, env.THIS_RUN_ICON, env.REPO_NAME, env.BRANCH) }}
 
-          ${{ format('Author: {0} ![Avatar](https://github.com/{1}.png)', github.event.head_commit.author.name, github.event.head_commit.author.username ) }}
+          Author: ${{ env.AUTHOR_NAME }}
           
-          Commit: ${{ github.event.head_commit.message }}
+          <blockquote>${{ env.COMMIT_MESSAGE }}</blockquote>
 
-          [Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) - [Repository](https://github.com/${{ github.repository }}) - [Changes](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+          <a href="${{ env.THIS_RUN_LINK }}">Details</a> · <a href="${{ env.REPO_LINK }}">Repository</a> · <a href="${{ env.CHANGES_LINK }}">Changes</a>
 
-#    - name: Google Chat Notificationa
+#    - name: 📢 Google Chat Notification
 #      uses: SimonScholz/google-chat-action@main
-#      if: job.status == 'failure'
-#      # this allows the build to succeed even when the notification fails
-#      # e.g. due to dependabot push, which may not have the secret
+#      if: job.status != 'success' || env.LAST_RUN != 'success' || inputs.ignore_green_to_green == false
+#      # continue-on-error allows the build to succeed even when the notification fails
+#      # e.g. when other users, such as dependabot, push without access to the secrets
 #      continue-on-error: true
 #      with:
-#        # https://docs.github.com/en/webhooks/webhook-events-and-payloads
 #        webhookUrl: ${{ inputs.webhook }}
-#        jobStatus: ${{ job.status }}
-#        imageUrl: ${{ format('https://github.com/{0}.png', github.event.head_commit.author.username) }}
-#        imageAltText: ${{ github.event.head_commit.author.name }}
-#        subtitle: ${{ github.event.head_commit.message }}
-#        title: "${{ format('{0} -- [{1}]', github.event.repository.name, github.ref_name ) }}"
+#        jobStatus: ${{ env.THIS_RUN }}
+#        imageUrl: ${{ env.AVATAR_URL }}
+#        imageAltText: ${{ env.AUTHOR_NAME }}
+#        subtitle: ${{ env.COMMIT_MESSAGE }}
+#        title: "${{ format('{0} -- [{1}]', env.REPO_NAME, env.BRANCH ) }}"
 
 
